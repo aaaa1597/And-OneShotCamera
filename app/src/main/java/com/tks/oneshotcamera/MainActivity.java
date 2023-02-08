@@ -28,8 +28,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     else {
                         /* 権限取得 拒否時 -> ErrorダイアグOpenでアプリ終了!! */
-                        MainFragment.ErrorDialog.newInstance(getString(R.string.request_permission))
-                                .show(getSupportFragmentManager(), "Error!!");
+                        MainFragment.ErrorDialog.newInstance(getString(R.string.request_permission)).show(getSupportFragmentManager(), "Error!!");
                     }
                 });
 
