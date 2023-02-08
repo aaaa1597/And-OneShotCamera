@@ -32,7 +32,6 @@ public class MainFragment extends Fragment {
     private MainViewModel mViewModel;
     private AutoFitTextureView mTextureView;
     private Handler mBackgroundHandler;
-    private static final int REQUEST_CAMERA_PERMISSION = 1111;
 
     public static MainFragment newInstance() {
         return new MainFragment();
@@ -47,36 +46,9 @@ public class MainFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        mTextureView = (AutoFitTextureView)view.findViewById(R.id.tvw_picture);
+        mTextureView = view.findViewById(R.id.tvw_picture);
         mViewModel = new ViewModelProvider(this).get(MainViewModel.class);
         // TODO: Use the ViewModel
-
-        if (ContextCompat.checkSelfPermission(getActivity(), android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            Log.d("aaaaa", "onViewCreated() ...");
-            if (shouldShowRequestPermissionRationale(android.Manifest.permission.CAMERA)) {
-                Log.d("aaaaa", "onViewCreated() ...2");
-                new ConfirmationDialog().show(getChildFragmentManager(), FRAGMENT_DIALOG);
-            }
-            else {
-                Log.d("aaaaa", "onViewCreated() ...3");
-                /* TODO aaaaaaaaaaaa */
-                ActivityResultLauncher<String> launcher = registerForActivityResult(
-                        new ActivityResultContracts.RequestPermission(),
-                        (isGranted) -> {
-                            if (isGranted) {
-                                Toast.makeText(getContext(), "aaaaa!!!!!", Toast.LENGTH_LONG).show();
-                                Log.d("aaaaa", "okokokokokok ...4");
-                            }
-                            else {
-                                ErrorDialog.newInstance(getString(R.string.request_permission))
-                                        .show(getChildFragmentManager(), FRAGMENT_DIALOG);
-                                Log.d("aaaaa", "ng ...5");
-                            }
-                        });
-                launcher.launch(android.Manifest.permission.CAMERA);
-//                requestPermissions(new String[]{android.Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
-            }
-        }
     }
 
     @Override
