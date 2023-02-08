@@ -17,6 +17,9 @@ The build didn't work, so I recreated it.
 Alpha version ... still under development.
 
 
+# Camera2使用のシーケンス
+# Sequence using camera2
+
 ```mermaid
 sequenceDiagram
 Alice ->> Bob: Hello Bob, how are you? aaa
