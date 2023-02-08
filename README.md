@@ -22,12 +22,44 @@ Alpha version ... still under development.
 
 ```mermaid
 sequenceDiagram
-Alice ->> Bob: Hello Bob, how are you? aaa
-Bob-->>John: How about you John?
-Bob--x Alice: I am good thanks!
-Bob-x John: I am good thanks!
-Note right of John: Bob thinks a long<br/>long time, so long<br/>that the text does<br/>not fit on a row.
+system ->> MainActivity: onCreate()
+MainActivity ->> MainActivity: registerForActivityResult()
+Note over MainActivity : If permission denied, exit here.
+MainActivity ->> system: MainFragment::newInstance()
+opt onResume() sequence
+	system ->> MainFragment: onResume()
+	MainFragment ->> Handler: new()
+	MainFragment ->> TextureView: setSurfaceTextureListener()
+	Note over TextureView: wait in onSurfaceTextureAvailable()<br> onSurfaceTextureSizeChanged()<br> onSurfaceTextureDestroyed()<br> onSurfaceTextureUpdated()
+end
 
-Bob-->Alice: Checking with John...
-Alice->John: Yes... John, how are you?
+opt openCamera() sequence
+	system ->> TextureView: onSurfaceTextureAvailable()
+	TextureView ->> MainFragment : openCamera()
+	MainFragment ->> MainFragment : setUpCameraOutputs()
+	MainFragment ->> ImageReader: newInstance()
+	MainFragment ->> ImageReader: setOnImageAvailableListener()
+	Note over ImageReader: wait in onImageAvailable()
+	MainFragment ->> MainFragment : setUpCameraOutputs() : mCameraId
+	MainFragment ->> TextureView: chooseOptimalSize() : Size
+	MainFragment ->> TextureView: setMatrix()
+	MainFragment ->> TextureView: openCamera(mCameraId, mStateCallback, mBackgroundHandler)
+	Note over CameraDevice: wait in onOpened()<br> onDisconnected()<br> onError()
+end
+
+opt startPreview() sequence
+	system ->> CameraDevice: onOpened()
+	CameraDevice->> MainFragment : createCameraPreviewSession()
+	Note over MainFragment : Start camera preview
+end
+
+system ->> MainFragment: onPause()
+MainFragment ->> Handler: stop
+
 ```
+
+作るときに StackEdit – In-browser Markdown editor などを使うと WYSIWYG でいい感じです。
+https://qiita.com/takke/items/86a5ddf145cf9693b6e9
+
+markdownでシーケンス図を書こう
+https://qiita.com/konitech913/items/90f91687cfe7ece50020
