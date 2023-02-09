@@ -4,6 +4,11 @@ Camera2のサンプル。Camera2は使い方が複雑ね～。<br/>
 Androidサンプルの[Camera2Basic](https://github.com/googlearchive/android-Camera2Basic.git)と内容はほぼ同じ。<br/>
 ビルドが通らんかったから、再作成した。
 
+素材は下記のを使用しました。ありがとうございます。
+
+[ICOOON-MONO](ttps://icooon-mono.com/) ← 直リンク禁止って事なので、あえてのリンク切れ
+[Loose Drawing](https://loosedrawing.com/)
+
 # And-OneShotCamera
 One shot only camera sample code.<br/>
 
