@@ -113,11 +113,8 @@ public class MainFragment extends Fragment {
             mCameraOpenCloseSemaphore.release();
             cameraDevice.close();
             mCameraDevice = null;
-            Activity activity = getActivity();
-            if(null != activity) {
-                activity.finish();
-            }
             dbglogout("e onError(120)");
+            throw new RuntimeException(String.format(java.util.Locale.US, "Error occurred!! CameraDevice.State errorcode=%x", error));
         }
 
     };
@@ -293,12 +290,35 @@ public class MainFragment extends Fragment {
         mTextureView = view.findViewById(R.id.tvw_picture);
         mViewModel = new ViewModelProvider(this).get(MainViewModel.class);
         // TODO: Use the ViewModel
+        view.findViewById(R.id.btn_shutter).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                takePicture();
+            }
+        });
+        /* TODO ボタン押下を作成する */
 
         Activity activity = getActivity();
         if(activity == null)
             return;
         mFile = new File(activity.getExternalFilesDir(null), "pic_aaaaa.jpg");
         dbglogout("e ");
+    }
+
+    /**
+     * Lock the focus as the first step for a still image capture.
+     */
+    private void takePicture() {
+        try {
+            /* This is how to tell the camera to lock focus. */
+            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
+            /* Tell #mCaptureCallback to wait for the lock. */
+            mState = STATE_WAITING_LOCK;
+            mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
+        }
+        catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -312,7 +332,7 @@ public class MainFragment extends Fragment {
         mBackgroundHandler = new Handler(t.getLooper());
 
         /* Set the TextureView */
-        if(!mTextureView.isAvailable()) {
+        if( !mTextureView.isAvailable()) {
             /* Set Listener to TextureView */
             mTextureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
                 @Override
@@ -325,21 +345,15 @@ public class MainFragment extends Fragment {
                 @Override
                 public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
                     dbglogout(String.format(java.util.Locale.US, "s (%d, %d) onSurfaceTextureSizeChanged(327)", width, height));
-                    /* TODO 実装予定 aaaaa bbbbb */
-//                    configureTransform(width, height);
+                    configureTransform(width, height);
                     dbglogout("e onSurfaceTextureSizeChanged(329)");
                 }
 
                 @Override
-                public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
-                    dbglogout("onSurfaceTextureDestroyed()");
-                    return true;
-                }
+                public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) { return true; }
 
                 @Override
-                public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-                    dbglogout("onSurfaceTextureUpdated(341)");
-                }
+                public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {}
             });
         }
         else {
@@ -352,6 +366,9 @@ public class MainFragment extends Fragment {
     public void onPause() {
         dbglogout("s ");
         super.onPause();
+
+        /* stop Camera */
+        closeCamera();
 
         /* stop Handler */
         try {
@@ -397,6 +414,33 @@ public class MainFragment extends Fragment {
             throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
         }
         dbglogout("e ");
+    }
+
+    /**
+     * Closes the current {@link CameraDevice}.
+     */
+    private void closeCamera() {
+        try {
+            mCameraOpenCloseSemaphore.acquire();
+            if (null != mCaptureSession) {
+                mCaptureSession.close();
+                mCaptureSession = null;
+            }
+            if (null != mCameraDevice) {
+                mCameraDevice.close();
+                mCameraDevice = null;
+            }
+            if (null != mImageReader) {
+                mImageReader.close();
+                mImageReader = null;
+            }
+        }
+        catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while trying to lock camera closing.", e);
+        }
+        finally {
+            mCameraOpenCloseSemaphore.release();
+        }
     }
 
     /**
@@ -638,7 +682,8 @@ public class MainFragment extends Fragment {
                                 /* Finally, we start displaying the camera preview. */
                                 mPreviewRequest = mPreviewRequestBuilder.build();
                                 mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
-                            } catch (CameraAccessException e) {
+                            }
+                            catch (CameraAccessException e) {
                                 e.printStackTrace();
                             }
                             dbglogout("e onConfigured(643)");
@@ -653,7 +698,8 @@ public class MainFragment extends Fragment {
                     },
                     null
             );
-        } catch (CameraAccessException e) {
+        }
+        catch (CameraAccessException e) {
             e.printStackTrace();
         }
         dbglogout("e ");
