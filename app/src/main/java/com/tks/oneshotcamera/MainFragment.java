@@ -1,10 +1,7 @@
 package com.tks.oneshotcamera;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.lifecycle.ViewModelProvider;
 
@@ -72,7 +69,7 @@ public class MainFragment extends Fragment {
     private MainViewModel mViewModel;
     private AutoFitTextureView mTextureView;
     private Handler mBackgroundHandler;
-    private Semaphore mCameraOpenCloseSemaphore = new Semaphore(1);
+    private final Semaphore mCameraOpenCloseSemaphore = new Semaphore(1);
     private ImageReader mImageReader;
     private File mFile;
     private int mSensorOrientation;
@@ -93,21 +90,26 @@ public class MainFragment extends Fragment {
     private final CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
         @Override
         public void onOpened(@NonNull CameraDevice cameraDevice) {
-            // This method is called when the camera is opened.  We start camera preview here.
+            dbglogout("s onOpened(93)");
+            /* This method is called when the camera is opened.  We start camera preview here. */
             mCameraOpenCloseSemaphore.release();
             mCameraDevice = cameraDevice;
             createCameraPreviewSession();
+            dbglogout("e onOpened(98)");
         }
 
         @Override
         public void onDisconnected(@NonNull CameraDevice cameraDevice) {
+            dbglogout("s onDisconnected(103)");
             mCameraOpenCloseSemaphore.release();
             cameraDevice.close();
             mCameraDevice = null;
+            dbglogout("e onDisconnected(107)");
         }
 
         @Override
         public void onError(@NonNull CameraDevice cameraDevice, int error) {
+            dbglogout("s onError(112)");
             mCameraOpenCloseSemaphore.release();
             cameraDevice.close();
             mCameraDevice = null;
@@ -115,12 +117,14 @@ public class MainFragment extends Fragment {
             if(null != activity) {
                 activity.finish();
             }
+            dbglogout("e onError(120)");
         }
 
     };
     private int mState = STATE_PREVIEW;
-    private CameraCaptureSession.CaptureCallback mCaptureCallback = new CameraCaptureSession.CaptureCallback() {
+    private final CameraCaptureSession.CaptureCallback mCaptureCallback = new CameraCaptureSession.CaptureCallback() {
         private void process(CaptureResult result) {
+            dbglogout( String.format(java.util.Locale.US, "s process(127) mState=%d", mState));
             switch (mState) {
                 case STATE_PREVIEW: {
                     /* We have nothing to do when the camera preview is working normally. */
@@ -162,29 +166,37 @@ public class MainFragment extends Fragment {
                     break;
                 }
             }
+            dbglogout("e process(169)");
         }
 
         @Override
         public void onCaptureProgressed(@NonNull CameraCaptureSession session,
                                         @NonNull CaptureRequest request,
                                         @NonNull CaptureResult partialResult) {
+            dbglogout("s onCaptureProgressed(176)");
             process(partialResult);
+            dbglogout("e onCaptureProgressed(178)");
         }
 
         @Override
         public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                        @NonNull CaptureRequest request,
                                        @NonNull TotalCaptureResult result) {
+            dbglogout("s onCaptureCompleted(185)");
             process(result);
+            dbglogout("e onCaptureCompleted(187)");
         }
 
     };
 
     /**
      * Run the pre-capture sequence for capturing a still image. This method should be called when
-     * we get a response in {@link #mCaptureCallback} from {@link #lockFocus()}.
+     * we get a response in {@link #mCaptureCallback} from {lockFocus()}.
      */
+//     * we get a response in {@link #mCaptureCallback} from {@link #lockFocus()}.
+
     private void runPrecaptureSequence() {
+        dbglogout("s ");
         try{
             /* This is how to tell the camera to trigger. */
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
@@ -195,17 +207,20 @@ public class MainFragment extends Fragment {
         catch (CameraAccessException e) {
             e.printStackTrace();
         }
+        dbglogout("e ");
     }
 
     /**
      * Capture a still picture. This method should be called when we get a response in
-     * {@link #mCaptureCallback} from both {@link #lockFocus()}.
+     * {@link #mCaptureCallback} from both {lockFocus()}.
      */
+//     * {@link #mCaptureCallback} from both {@link #lockFocus()}.
     private void captureStillPicture() {
+        dbglogout("s ");
         try{
             final Activity activity = getActivity();
-            if(null == activity || null == mCameraDevice)
-                return;
+            if(null == activity || null == mCameraDevice) return;
+
             /* This is the CaptureRequest.Builder that we use to take a picture. */
             final CaptureRequest.Builder captureBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
             captureBuilder.addTarget(mImageReader.getSurface());
@@ -221,9 +236,11 @@ public class MainFragment extends Fragment {
             CameraCaptureSession.CaptureCallback CaptureCallback = new CameraCaptureSession.CaptureCallback() {
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+                    dbglogout("s onCaptureCompleted(239)");
                     showToast("Saved: " + mFile);
                     Log.d("aaaaa", mFile.toString());
                     unlockFocus();
+                    dbglogout("e onCaptureCompleted(243)");
                 }
             };
 
@@ -234,12 +251,14 @@ public class MainFragment extends Fragment {
         catch (CameraAccessException e) {
             e.printStackTrace();
         }
+        dbglogout("e ");
     }
 
     /**
      * Unlock the focus. This method should be called when still image capture sequence is finished.
      */
     private void unlockFocus() {
+        dbglogout("s ");
         try {
             /* Reset the auto-focus trigger */
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
@@ -253,19 +272,23 @@ public class MainFragment extends Fragment {
         catch (CameraAccessException e) {
             e.printStackTrace();
         }
+        dbglogout("e ");
     }
 
     public static MainFragment newInstance() {
+        dbglogout("");
         return new MainFragment();
     }
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        dbglogout("");
         return inflater.inflate(R.layout.fragment_main, container, false);
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        dbglogout("s ");
         super.onViewCreated(view, savedInstanceState);
         mTextureView = view.findViewById(R.id.tvw_picture);
         mViewModel = new ViewModelProvider(this).get(MainViewModel.class);
@@ -275,11 +298,12 @@ public class MainFragment extends Fragment {
         if(activity == null)
             return;
         mFile = new File(activity.getExternalFilesDir(null), "pic_aaaaa.jpg");
+        dbglogout("e ");
     }
 
     @Override
     public void onResume() {
-        Log.d("aaaaa", "onResume()");
+        dbglogout("s ");
         super.onResume();
 
         /* start Handler */
@@ -293,36 +317,40 @@ public class MainFragment extends Fragment {
             mTextureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
                 @Override
                 public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
-                    Log.d("aaaaa", "??? 1st onSurfaceTextureAvailable()");
+                    dbglogout(String.format(java.util.Locale.US, "s (%d, %d) onSurfaceTextureAvailable(320)", width, height));
                     openCamera(width, height);
+                    dbglogout("e onSurfaceTextureAvailable(322)");
                 }
 
                 @Override
                 public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
-                    Log.d("aaaaa", "??? 2nd onSurfaceTextureSizeChanged()");
+                    dbglogout(String.format(java.util.Locale.US, "s (%d, %d) onSurfaceTextureSizeChanged(327)", width, height));
+                    /* TODO 実装予定 aaaaa bbbbb */
 //                    configureTransform(width, height);
+                    dbglogout("e onSurfaceTextureSizeChanged(329)");
                 }
 
                 @Override
                 public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture surface) {
-                    Log.d("aaaaa", "??? 3rd onSurfaceTextureDestroyed()");
+                    dbglogout("onSurfaceTextureDestroyed()");
                     return true;
                 }
 
                 @Override
                 public void onSurfaceTextureUpdated(@NonNull SurfaceTexture surface) {
-                    Log.d("aaaaa", "??? 4th onSurfaceTextureUpdated()");
+                    dbglogout("onSurfaceTextureUpdated(341)");
                 }
             });
         }
         else {
             openCamera(mTextureView.getWidth(), mTextureView.getHeight());
         }
+        dbglogout("e ");
     }
 
     @Override
     public void onPause() {
-        Log.d("aaaaa", "onPause()");
+        dbglogout("s ");
         super.onPause();
 
         /* stop Handler */
@@ -333,11 +361,11 @@ public class MainFragment extends Fragment {
         catch(InterruptedException e) {
             throw new RuntimeException(e);
         }
-
+        dbglogout("e ");
     }
 
     private void openCamera(int width, int height) {
-        Log.d("aaaaa", "openCamera() w=" + width + " h=" + height);
+        dbglogout(String.format(java.util.Locale.US, "s (%d, %d)", width, height));
         setUpCameraOutputs(width, height);
         configureTransform(width, height);
         Activity activity = getActivity();
@@ -350,9 +378,8 @@ public class MainFragment extends Fragment {
 
         CameraManager manager = (CameraManager)activity.getSystemService(Context.CAMERA_SERVICE);
         try {
-            if(!mCameraOpenCloseSemaphore.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
+            if( !mCameraOpenCloseSemaphore.tryAcquire(2500, TimeUnit.MILLISECONDS))
                 throw new RuntimeException("Time out waiting to lock camera opening.");
-            }
 
             /* 権限チェック -> 権限なし時はアプリ終了!!(CameraManager::openCamera()をコールする前には必ず必要) */
             if(ActivityCompat.checkSelfPermission(getActivity(), android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -369,6 +396,7 @@ public class MainFragment extends Fragment {
         catch (InterruptedException e) {
             throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
         }
+        dbglogout("e ");
     }
 
     /**
@@ -378,6 +406,7 @@ public class MainFragment extends Fragment {
      * @param height The height of available size for camera preview
      */
     private void setUpCameraOutputs(int width, int height) {
+        dbglogout(String.format(java.util.Locale.US, "s (%d, %d)", width, height));
         Activity activity = getActivity();
         if(activity == null)
             throw new RuntimeException("illegal state!! activity is null!!");
@@ -399,12 +428,16 @@ public class MainFragment extends Fragment {
                 /* For still image captures, we use the largest available size. */
                 Size largest = Collections.max(Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)), new CompareSizesByArea());
                 mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(), ImageFormat.JPEG, /*maxImages*/2);
-                mImageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
-                        @Override
-                        public void onImageAvailable(ImageReader reader) {
-                            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
-                        }
-                    }, mBackgroundHandler);
+                mImageReader.setOnImageAvailableListener(
+                        new ImageReader.OnImageAvailableListener() {
+                            @Override
+                            public void onImageAvailable(ImageReader reader) {
+                                dbglogout("s onImageAvailable(434)");
+                                mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
+                                dbglogout("e onImageAvailable(436)");
+                            }
+                        },
+                        mBackgroundHandler);
 
                 /* Find out if we need to swap dimension to get the preview size relative to sensor coordinate. */
                 int displayRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
@@ -466,6 +499,7 @@ public class MainFragment extends Fragment {
                 mFlashSupported = available == null ? false : available;
 
                 mCameraId = cameraId;
+                dbglogout("e ");
                 return;
             }
         }
@@ -477,6 +511,7 @@ public class MainFragment extends Fragment {
             e.printStackTrace();
             ErrorDialog.newInstance(getString(R.string.camera_error)).show(getChildFragmentManager(), FRAGMENT_DIALOG);
         }
+        dbglogout("e ");
     }
 
     /**
@@ -493,6 +528,7 @@ public class MainFragment extends Fragment {
      * @return The optimal {@code Size}, or an arbitrary one if none were big enough
      */
     private static Size chooseOptimalSize(Size[] choices, int textureViewWidth, int textureViewHeight, int maxWidth, int maxHeight, Size aspectRatio) {
+        dbglogout(String.format(java.util.Locale.US, "s (textureView(%d, %d), max(%d, %d)) aspectRatio(%d, %d)", textureViewWidth, textureViewHeight, maxWidth, maxHeight, aspectRatio.getWidth(), aspectRatio.getHeight()));
         /* Collect the supported resolutions that are at least as big as the preview Surface */
         List<Size> bigEnough = new ArrayList<>();
         /* Collect the supported resolutions that are smaller than the preview Surface */
@@ -500,6 +536,7 @@ public class MainFragment extends Fragment {
         int w = aspectRatio.getWidth();
         int h = aspectRatio.getHeight();
         for(Size option : choices) {
+            dbglogout(String.format(java.util.Locale.US, "aaaaa camara-size %dx%d", option.getWidth(), option.getHeight()));
             if(option.getWidth() <= maxWidth && option.getHeight() <= maxHeight && option.getHeight() == option.getWidth() * h / w) {
                 if(option.getWidth() >= textureViewWidth && option.getHeight() >= textureViewHeight) {
                     bigEnough.add(option);
@@ -512,13 +549,16 @@ public class MainFragment extends Fragment {
 
         /* Pick the smallest of those big enough. If there is no one big enough, pick the largest of those not big enough. */
         if(bigEnough.size() > 0) {
+            dbglogout("e ");
             return Collections.min(bigEnough, new CompareSizesByArea());
         }
         else if(notBigEnough.size() > 0) {
+            dbglogout("e ");
             return Collections.max(notBigEnough, new CompareSizesByArea());
         }
         else {
             Log.e("aaaaa", "Couldn't find any suitable preview size");
+            dbglogout("e ");
             return choices[0];
         }
     }
@@ -531,6 +571,7 @@ public class MainFragment extends Fragment {
      * @param viewHeight The height of `mTextureView`
      */
     private void configureTransform(int viewWidth, int viewHeight) {
+        dbglogout(String.format(java.util.Locale.US, "s (View(%d, %d)", viewWidth, viewHeight));
         Activity activity = getActivity();
         if(null == mTextureView || null == mPreviewSize || null == activity)
             return;
@@ -552,12 +593,14 @@ public class MainFragment extends Fragment {
             matrix.postRotate(180, centerX, centerY);
         }
         mTextureView.setTransform(matrix);
+        dbglogout("e ");
     }
 
     /**
      * Creates a new {@link CameraCaptureSession} for camera preview.
      */
     private void createCameraPreviewSession() {
+        dbglogout("s ");
         try {
             SurfaceTexture texture = mTextureView.getSurfaceTexture();
             assert texture != null;
@@ -573,41 +616,47 @@ public class MainFragment extends Fragment {
             mPreviewRequestBuilder.addTarget(surface);
 
             /* Here, we create a CameraCaptureSession for camera preview. */
-            mCameraDevice.createCaptureSession(Arrays.asList(surface, mImageReader.getSurface()),
-                new CameraCaptureSession.StateCallback() {
-                    @Override
-                    public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                        /* The camera is already closed */
-                        if (null == mCameraDevice)
-                            return;
+            mCameraDevice.createCaptureSession(
+                    Arrays.asList(surface, mImageReader.getSurface()),
+                    new CameraCaptureSession.StateCallback() {
+                        @Override
+                        public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                            dbglogout("s onConfigured(623)");
+                            /* The camera is already closed */
+                            if (null == mCameraDevice)
+                                return;
 
-                        /* When the session is ready, we start displaying the preview. */
-                        mCaptureSession = cameraCaptureSession;
-                        try {
-                            /* Auto focus should be continuous for camera preview. */
-                            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-                            /* Flash is automatically enabled when necessary. */
-                            if(mFlashSupported)
-                                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+                            /* When the session is ready, we start displaying the preview. */
+                            mCaptureSession = cameraCaptureSession;
+                            try {
+                                /* Auto focus should be continuous for camera preview. */
+                                mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                                /* Flash is automatically enabled when necessary. */
+                                if(mFlashSupported)
+                                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
 
-                            /* Finally, we start displaying the camera preview. */
-                            mPreviewRequest = mPreviewRequestBuilder.build();
-                            mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
-                        } catch (CameraAccessException e) {
-                            e.printStackTrace();
+                                /* Finally, we start displaying the camera preview. */
+                                mPreviewRequest = mPreviewRequestBuilder.build();
+                                mCaptureSession.setRepeatingRequest(mPreviewRequest, mCaptureCallback, mBackgroundHandler);
+                            } catch (CameraAccessException e) {
+                                e.printStackTrace();
+                            }
+                            dbglogout("e onConfigured(643)");
                         }
-                    }
 
-                    @Override
-                    public void onConfigureFailed(
-                            @NonNull CameraCaptureSession cameraCaptureSession) {
-                        showToast("Failed");
-                    }
-                }, null
+                        @Override
+                        public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+                            dbglogout("s ");
+                            showToast("Failed");
+                            dbglogout("e ");
+                        }
+                    },
+                    null
             );
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+        dbglogout("e ");
     }
 
     private void showToast(final String text) {
@@ -647,6 +696,7 @@ public class MainFragment extends Fragment {
 
         @Override
         public void run() {
+            dbglogout(String.format("s %s %s ImageSaver::run(697)", mFile, mImage));
             ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
@@ -669,6 +719,7 @@ public class MainFragment extends Fragment {
                     }
                 }
             }
+            dbglogout("e ImageSaver::run(720)");
         }
     }
 
@@ -704,5 +755,15 @@ public class MainFragment extends Fragment {
                     })
                     .create();
         }
+    }
+
+    private static void dbglogout(String msg) {
+        StackTraceElement[] stack = new Throwable().getStackTrace();
+        String className = stack[1].getClassName();
+        String method = stack[1].getMethodName();
+        int line = stack[1].getLineNumber();
+        StringBuilder buf = new StringBuilder(60);
+        buf.append(msg).append(" ").append(className).append("::").append(method).append("(").append(line).append(")");
+        Log.d("aaaaa", buf.toString());
     }
 }
