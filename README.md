@@ -26,49 +26,51 @@ Alpha version ... still under development.
 sequenceDiagram
 system ->> MainActivity: onCreate()
 MainActivity ->> MainActivity: registerForActivityResult()
-Note over MainActivity : If permission denied, exit here.
+Note over MainActivity : If permission denied, exit this application.
 MainActivity ->> MainFragment: newInstance()
 ```
 
+## 2nd Fragment::onResume()シーケンス
+## 2nd Sequence of Fragment::onResume()
 ```mermaid
 sequenceDiagram
-opt onResume() sequence
-	system ->> MainFragment: onResume()
-	MainFragment ->> Handler: new()
-	MainFragment ->> TextureView: setSurfaceTextureListener()
-	Note over TextureView: wait in onSurfaceTextureAvailable()<br> onSurfaceTextureSizeChanged()<br> onSurfaceTextureDestroyed()<br> onSurfaceTextureUpdated()
-end
+system ->> MainFragment: onResume()
+MainFragment ->> Handler: new() : Handler
+MainFragment ->> TextureView: setSurfaceTextureListener()
+Note over TextureView: wait in onSurfaceTextureAvailable()<br> onSurfaceTextureSizeChanged()<br> onSurfaceTextureDestroyed()<br> onSurfaceTextureUpdated()
 ```
 
+## 3rd openCamera()シーケンス
+## 3rd Sequence of openCamera()
 ```mermaid
 sequenceDiagram
-opt openCamera() sequence
-	system ->> TextureView: onSurfaceTextureAvailable()
-	TextureView ->> MainFragment : openCamera()
-	MainFragment ->> MainFragment : setUpCameraOutputs()
-	MainFragment ->> ImageReader: newInstance()
-	MainFragment ->> ImageReader: setOnImageAvailableListener()
-	Note over ImageReader: wait in onImageAvailable()
-	MainFragment ->> MainFragment : setUpCameraOutputs() : mCameraId
-	MainFragment ->> TextureView: chooseOptimalSize() : Size
-	MainFragment ->> TextureView: setMatrix()
-	MainFragment ->> TextureView: openCamera(mCameraId, mStateCallback, mBackgroundHandler)
-	Note over CameraDevice: wait in onOpened()<br> onDisconnected()<br> onError()
-end
+system ->> TextureView: onSurfaceTextureAvailable()
+TextureView ->> MainFragment : openCamera(1920,1080)
+MainFragment ->> MainFragment : setUpCameraOutputs(1920,1080) : mCameraId
+MainFragment ->> ImageReader: newInstance() : ImageReader
+MainFragment ->> ImageReader: setOnImageAvailableListener()
+Note over ImageReader: wait in onImageAvailable()
+MainFragment ->> MainFragment : configureTransform(1920,1080)
+MainFragment ->> Activity: getSystemService(Context.CAMERA_SERVICE) : CameraManager
+MainFragment ->> CameraManager: openCamera(mCameraId, mStateCallback, mBackgroundHandler)
+Note over CameraManager: set the CameraDevice.StateCallback class<br> wait in onOpened()<br> onDisconnected()<br> onError()
 ```
-
+## 4th CameraDevice.StateCallback::onOpened()シーケンス
+## 4th Sequence of CameraDevice.StateCallback::onOpened()
 ```mermaid
 sequenceDiagram
-opt startPreview() sequence
-	system ->> CameraDevice: onOpened()
-	CameraDevice->> MainFragment : createCameraPreviewSession()
-	Note over MainFragment : Start camera preview
+system ->> CameraDevice.StateCallback: onOpened(CameraDevice mCameraDevice)
+CameraDevice.StateCallback ->> MainFragment : createCameraPreviewSession()
+Note over MainFragment : Start camera preview
+opt ready
 	MainFragment ->> TextureView: ogetSurfaceTexture() : SurfaceTexture
 	MainFragment ->> SurfaceTexture: setDefaultBufferSize(1920, 1080)
-	MainFragment ->> Surface: new() : Surface
+	MainFragment ->> Surface: new(SurfaceTexture) : Surface
 	MainFragment ->> CameraDevice: createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW) : CaptureRequest.Builder
 	MainFragment ->> CaptureRequest.Builder: addTarget(Surface)
 end
+MainFragment ->> CameraDevice: createCaptureSession([TextureView::Surface, ImageReader::Surface], callback)
+Note over CameraDevice: set the CameraCaptureSession.StateCallback class<br> wait in onConfigured()<br> onConfigureFailed()
 ```
 
 ```mermaid
