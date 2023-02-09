@@ -288,6 +288,7 @@ public class MainFragment extends Fragment {
         dbglogout("s ");
         super.onViewCreated(view, savedInstanceState);
         mTextureView = view.findViewById(R.id.tvw_picture);
+        dbglogout(String.format(java.util.Locale.US, "aaaaa mTextureView-size %dx%d", mTextureView.getWidth(), mTextureView.getHeight()));
         mViewModel = new ViewModelProvider(this).get(MainViewModel.class);
         // TODO: Use the ViewModel
         view.findViewById(R.id.btn_shutter).setOnClickListener(new View.OnClickListener() {
@@ -357,6 +358,7 @@ public class MainFragment extends Fragment {
             });
         }
         else {
+            dbglogout(String.format(java.util.Locale.US, "aaaaa TextureView-size %dx%d", mTextureView.getWidth(), mTextureView.getHeight()));
             openCamera(mTextureView.getWidth(), mTextureView.getHeight());
         }
         dbglogout("e ");
@@ -471,6 +473,7 @@ public class MainFragment extends Fragment {
 
                 /* For still image captures, we use the largest available size. */
                 Size largest = Collections.max(Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)), new CompareSizesByArea());
+                dbglogout(String.format(java.util.Locale.US, "aaaaa largest -size %dx%d", largest.getWidth(), largest.getHeight()));
                 mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(), ImageFormat.JPEG, /*maxImages*/2);
                 mImageReader.setOnImageAvailableListener(
                         new ImageReader.OnImageAvailableListener() {
@@ -527,11 +530,12 @@ public class MainFragment extends Fragment {
 
                 /* Danger, W.R.!
                    Attempting to use too large a preview size could exceed the camera bus' bandwidth limitation, resulting in gorgeous previews but the storage of garbage capture data. */
-                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), rotatedPreviewWidth, rotatedPreviewHeight, maxPreviewWidth, maxPreviewHeight, largest);
+                mPreviewSize = chooseOptimalSize(map.getOutputSizes(SurfaceTexture.class), rotatedPreviewWidth, rotatedPreviewHeight, maxPreviewWidth, maxPreviewHeight, new Size(16, 9));
+                dbglogout(String.format(java.util.Locale.US, "aaaaa mPreviewSize -size %dx%d", mPreviewSize.getWidth(), mPreviewSize.getHeight()));
 
                 /* We fit the aspect ratio of TextureView to the size of preview we picked. */
                 int orientation = getResources().getConfiguration().orientation;
-                if (orientation == Configuration.ORIENTATION_LANDSCAPE/*horizontal*/) {
+                if(orientation == Configuration.ORIENTATION_LANDSCAPE/*horizontal*/) {
                     mTextureView.setAspectRatio(mPreviewSize.getWidth(), mPreviewSize.getHeight());
                 }
                 else {/*vertical*/
@@ -580,14 +584,23 @@ public class MainFragment extends Fragment {
         int w = aspectRatio.getWidth();
         int h = aspectRatio.getHeight();
         for(Size option : choices) {
-            dbglogout(String.format(java.util.Locale.US, "aaaaa camara-size %dx%d", option.getWidth(), option.getHeight()));
             if(option.getWidth() <= maxWidth && option.getHeight() <= maxHeight && option.getHeight() == option.getWidth() * h / w) {
                 if(option.getWidth() >= textureViewWidth && option.getHeight() >= textureViewHeight) {
+                    dbglogout(String.format(java.util.Locale.US, "aaaaa camara-size %dx%d 大判定", option.getWidth(), option.getHeight()));
                     bigEnough.add(option);
                 }
                 else {
+                    dbglogout(String.format(java.util.Locale.US, "aaaaa camara-size %dx%d not大判定", option.getWidth(), option.getHeight()));
                     notBigEnough.add(option);
                 }
+            }
+            else {
+                if( !(option.getWidth() <= maxWidth))
+                    dbglogout(String.format(java.util.Locale.US, "aaaaa camara-size %dx%d 対象外(Width is ng %d <= max(%d))", option.getWidth(), option.getHeight(), option.getWidth(), maxWidth));
+                else if( !(option.getHeight() <= maxHeight))
+                    dbglogout(String.format(java.util.Locale.US, "aaaaa camara-size %dx%d 対象外(Height is ng %d <= max(%d))", option.getWidth(), option.getHeight(), option.getHeight(), maxHeight));
+                else if( !(option.getHeight() == option.getWidth() * h / w))
+                    dbglogout(String.format(java.util.Locale.US, "aaaaa camara-size %dx%d 対象外(Aspect not ==. %d != %d)", option.getWidth(), option.getHeight(), option.getHeight(), option.getWidth() * h / w));
             }
         }
 
