@@ -6,7 +6,7 @@ Androidサンプルの[Camera2Basic](https://github.com/googlearchive/android-Ca
 
 素材は下記のを使用しました。ありがとうございます。
 
-- [ICOOON-MONO](ttps://icooon-mono.com/) ← 直リンク禁止って事なので、あえてのリンク切れ<br/>
+- [ICOOON-MONO](ttps://icooon-mono.com/) ← 直リンク禁止って事なので、あえてのリンクは張ってない
 - [Loose Drawing](https://loosedrawing.com/)
 
 # And-OneShotCamera
