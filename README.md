@@ -55,8 +55,8 @@ MainFragment ->> Activity: getSystemService(Context.CAMERA_SERVICE) : CameraMana
 MainFragment ->> CameraManager: openCamera(mCameraId, mStateCallback, mBackgroundHandler)
 Note over CameraManager: set the CameraDevice.StateCallback class<br> wait in onOpened()<br> onDisconnected()<br> onError()
 ```
-## 4th CameraDevice.StateCallback::onOpened()シーケンス
-## 4th Sequence of CameraDevice.StateCallback::onOpened()
+## 4th CameraDevice.StateCallback::onOpened()->プレビュー開始シーケンス
+## 4th Sequence of CameraDevice.StateCallback::onOpened() -> Preview starting
 ```mermaid
 sequenceDiagram
 system ->> CameraDevice.StateCallback: onOpened(CameraDevice mCameraDevice)
@@ -73,10 +73,29 @@ MainFragment ->> CameraDevice: createCaptureSession([TextureView::Surface, Image
 Note over CameraDevice: set the CameraCaptureSession.StateCallback class<br> wait in onConfigured()<br> onConfigureFailed()
 ```
 
+## 5th プレビュー設定完了シーケンス
+## 5th Preview setting completion sequence
+
+# Camera2 プレビュー実行 シーケンス
+# camera preview flow of Camera2
+
 ```mermaid
 sequenceDiagram
-system ->> MainFragment: onPause()
-MainFragment ->> Handler: stop
+system ->> CameraCaptureSession.StateCallback: onConfigured(CameraCaptureSession)
+CameraCaptureSession.StateCallback ->> CaptureRequest.Builder: set(CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+CameraCaptureSession.StateCallback ->> CaptureRequest.Builder: set(CONTROL_AE_MODE_ON_AUTO_FLASH)
+CameraCaptureSession.StateCallback ->> CameraCaptureSession: setRepeatingRequest(CaptureRequest.Builder.build(), CameraCaptureSession.CaptureCallback)
+Note over CameraCaptureSession.CaptureCallback: set the CameraCaptureSession.StateCallback class<br> wait in onCaptureProgressed()<br> onCaptureCompleted()
+```
+
+# Camera2 プレビュー実行 シーケンス
+# camera preview flow of Camera2
+
+```mermaid
+sequenceDiagram
+system ->> CameraCaptureSession.StateCallback: onCaptureCompleted()
+CameraCaptureSession.StateCallback ->> CameraCaptureSession.StateCallback: process(CaptureResult)
+Note over CameraCaptureSession.StateCallback : We have nothing to do when the camera preview is working normally.
 ```
 
 作るときに StackEdit – In-browser Markdown editor などを使うと WYSIWYG でいい感じです。
