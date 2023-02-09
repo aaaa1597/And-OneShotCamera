@@ -76,9 +76,6 @@ Note over CameraDevice: set the CameraCaptureSession.StateCallback class<br> wai
 ## 5th プレビュー設定完了シーケンス
 ## 5th Preview setting completion sequence
 
-# Camera2 プレビュー実行 シーケンス
-# camera preview flow of Camera2
-
 ```mermaid
 sequenceDiagram
 system ->> CameraCaptureSession.StateCallback: onConfigured(CameraCaptureSession)
