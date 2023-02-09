@@ -1,10 +1,8 @@
 # And-OneShotCamera
-単射専用カメラのサンプル<br/>
+Camera2のサンプル。Camera2は使い方が複雑ね～。<br/>
 
 Androidサンプルの[Camera2Basic](https://github.com/googlearchive/android-Camera2Basic.git)と内容はほぼ同じ。<br/>
 ビルドが通らんかったから、再作成した。
-
-αバージョン ... まだ、開発中。
 
 # And-OneShotCamera
 One shot only camera sample code.<br/>
