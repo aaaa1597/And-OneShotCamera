@@ -98,6 +98,7 @@ CameraCaptureSession.StateCallback ->> CameraCaptureSession.StateCallback: proce
 Note over CameraCaptureSession.StateCallback : We have nothing to do when the camera preview is working normally.
 ```
 
+---
 作るときに StackEdit – In-browser Markdown editor などを使うと WYSIWYG でいい感じです。
 https://qiita.com/takke/items/86a5ddf145cf9693b6e9
 
