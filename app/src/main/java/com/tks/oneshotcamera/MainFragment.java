@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModelProvider;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
@@ -28,14 +30,17 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.net.Uri;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
@@ -47,14 +52,18 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -68,6 +77,7 @@ public class MainFragment extends Fragment {
     }
     private MainViewModel mViewModel;
     private AutoFitTextureView mTextureView;
+    private HandlerThread mBackgroundThread;
     private Handler mBackgroundHandler;
     private final Semaphore mCameraOpenCloseSemaphore = new Semaphore(1);
     private ImageReader mImageReader;
@@ -291,6 +301,9 @@ public class MainFragment extends Fragment {
         dbglogout(String.format(java.util.Locale.US, "aaaaa mTextureView-size %dx%d", mTextureView.getWidth(), mTextureView.getHeight()));
         mViewModel = new ViewModelProvider(this).get(MainViewModel.class);
         // TODO: Use the ViewModel
+
+        dbglogout(String.format(java.util.Locale.US, "aaaaa ExternalStoragePath=%s", Environment.getExternalStorageDirectory()));/* /storage/emulated/0 */
+        dbglogout(String.format(java.util.Locale.US, "TextureView -size (%d, %d) ", mTextureView.getWidth(), mTextureView.getHeight()));
         view.findViewById(R.id.btn_shutter).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -328,9 +341,11 @@ public class MainFragment extends Fragment {
         super.onResume();
 
         /* start Handler */
-        HandlerThread t = new HandlerThread("CameraBackground");
-        t.start();
-        mBackgroundHandler = new Handler(t.getLooper());
+        mBackgroundThread = new HandlerThread("CameraBackground");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+
+        dbglogout(String.format(java.util.Locale.US, "TextureView -size (%d, %d) ", mTextureView.getWidth(), mTextureView.getHeight()));
 
         /* Set the TextureView */
         if( !mTextureView.isAvailable()) {
@@ -338,14 +353,15 @@ public class MainFragment extends Fragment {
             mTextureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
                 @Override
                 public void onSurfaceTextureAvailable(@NonNull SurfaceTexture surface, int width, int height) {
-                    dbglogout(String.format(java.util.Locale.US, "s (%d, %d) onSurfaceTextureAvailable(320)", width, height));
+                    dbglogout(String.format(java.util.Locale.US, "s onSurfaceTextureAvailable(345) -size (%d, %d) ", width, height));
+                    dbglogout(String.format(java.util.Locale.US, "TextureView -size (%d, %d) ", mTextureView.getWidth(), mTextureView.getHeight()));
                     openCamera(width, height);
-                    dbglogout("e onSurfaceTextureAvailable(322)");
+                    dbglogout("e onSurfaceTextureAvailable(348)");
                 }
 
                 @Override
                 public void onSurfaceTextureSizeChanged(@NonNull SurfaceTexture surface, int width, int height) {
-                    dbglogout(String.format(java.util.Locale.US, "s (%d, %d) onSurfaceTextureSizeChanged(327)", width, height));
+                    dbglogout(String.format(java.util.Locale.US, "s onSurfaceTextureSizeChanged(348) -size (%d, %d)", width, height));
                     configureTransform(width, height);
                     dbglogout("e onSurfaceTextureSizeChanged(329)");
                 }
@@ -373,6 +389,7 @@ public class MainFragment extends Fragment {
         closeCamera();
 
         /* stop Handler */
+        mBackgroundThread.quitSafely();
         try {
             mBackgroundHandler.getLooper().getThread().join();
             mBackgroundHandler = null;
@@ -480,7 +497,7 @@ public class MainFragment extends Fragment {
                             @Override
                             public void onImageAvailable(ImageReader reader) {
                                 dbglogout("s onImageAvailable(434)");
-                                mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
+                                mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile, getActivity()));
                                 dbglogout("e onImageAvailable(436)");
                             }
                         },
@@ -747,31 +764,54 @@ public class MainFragment extends Fragment {
      */
     private static class ImageSaver implements Runnable {
         private final Image mImage; /** The JPEG image */
-        private final File mFile;   /** The file we save the image into. */
-        ImageSaver(Image image, File file) {
+        private File mFile;   /** The file we save the image into. */
+        private Activity mAtivity;   /** The file we save the image into. */
+        ImageSaver(Image image, File file, Activity activity) {
             mImage = image;
             mFile = file;
+            mAtivity = activity;
         }
 
+        final SimpleDateFormat mDf = new SimpleDateFormat("yyyyMMdd HHmmssSSS", Locale.US);
         @Override
         public void run() {
-            dbglogout(String.format("s %s %s ImageSaver::run(697)", mFile, mImage));
+            mDf.setTimeZone(TimeZone.getTimeZone("Asia/Tokyo"));
+//            dbglogout(String.format(java.util.Locale.US, "aaaaa ExternalStoragePath=%s", Environment.getExternalStorageDirectory()));/* /storage/emulated/0 */
+            ContentValues values = new ContentValues();
+            // ファイル名
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, String.format("aaaaa_%s.jpg", mDf.format(new Date())));
+            // マイムの設定
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+            // 書込み時にメディア ファイルに排他的にアクセスする
+            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+
+            ContentResolver resolver = mAtivity.getApplicationContext().getContentResolver();
+            Uri collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            Uri item = resolver.insert(collection, values);
+
             ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
-            FileOutputStream output = null;
+
+            OutputStream outstream = null;
             try {
-                output = new FileOutputStream(mFile);
-                output.write(bytes);
+                outstream = mAtivity.getContentResolver().openOutputStream(item);
+                outstream.write(bytes);
             }
             catch (IOException e) {
                 e.printStackTrace();
             }
             finally {
                 mImage.close();
-                if (null != output) {
+
+                values.clear();
+                //　排他的にアクセスの解除
+                values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                resolver.update(item, values, null, null);
+
+                if (null != outstream) {
                     try {
-                        output.close();
+                        outstream.close();
                     }
                     catch (IOException e) {
                         e.printStackTrace();
