@@ -6,11 +6,10 @@
     android:background="#8888fffe"
     tools:context=".MainFragment">
 
-    <com.tks.oneshotcamera.AutoFitTextureView
-        android:id="@+id/tvw_picture"
+    <TextureView
+        android:id="@+id/tvw_preview"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        tools:ignore="RelativeOverlap" />
+        android:layout_height="wrap_content" />
 
     <ToggleButton
         android:id="@+id/btn_config"
