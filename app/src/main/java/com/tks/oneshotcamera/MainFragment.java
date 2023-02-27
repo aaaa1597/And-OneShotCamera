@@ -41,7 +41,6 @@ import android.os.HandlerThread;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.util.Size;
-import android.util.SparseIntArray;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.TextureView;
@@ -54,12 +53,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.Semaphore;
@@ -67,26 +62,13 @@ import java.util.concurrent.TimeUnit;
 
 public class MainFragment extends Fragment {
     private FragmentActivity mActivity;
-    private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
-    static {
-        ORIENTATIONS.append(Surface.ROTATION_0, 90);
-        ORIENTATIONS.append(Surface.ROTATION_90, 0);
-        ORIENTATIONS.append(Surface.ROTATION_180, 270);
-        ORIENTATIONS.append(Surface.ROTATION_270, 180);
-    }
     private MainViewModel mViewModel;
     private final Semaphore mCameraOpenCloseSemaphore = new Semaphore(1);
     static ContentResolver mResolver;
     static final SimpleDateFormat mDf = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.JAPAN);
-    private ImageReader mImageReader;
-    private static final int STATE_PREVIEW = 0;
-    private static final int STATE_WAITING_LOCK = 1;
-    private static final int STATE_WAITING_PRECAPTURE = 2;
-    private static final int STATE_WAITING_NON_PRECAPTURE = 3;
-    private static final int STATE_PICTURE_TAKEN = 4;
+    private ImageReader mImageReader4TakePicture;
     private CameraCaptureSession mCaptureSession;
     private CaptureRequest mRequestforPreview;
-    private int mState = STATE_PREVIEW;
 
     /* 絞りを開ける=f値小, 光がたくさん, 被写界深度-浅, 背景がボケる。被写体を浮き立たせる効果がある。シャッター速度が速くなるため手ブレしにくくなる。 */
     /* 絞りを絞る　=f値大, 光が少し　　, 被写界深度-深, 画面全部にピントが合う。 */
@@ -194,8 +176,8 @@ public class MainFragment extends Fragment {
     private void openCamera(String cameraid) {
         /* 撮像(サイズと保存先)設定 */
         Size pictureSize = mViewModel.getTakePictureSize();
-        mImageReader = ImageReader.newInstance(pictureSize.getWidth(), pictureSize.getHeight(), ImageFormat.JPEG, /*maxImages*/10);
-        mImageReader.setOnImageAvailableListener(
+        mImageReader4TakePicture = ImageReader.newInstance(pictureSize.getWidth(), pictureSize.getHeight(), ImageFormat.JPEG, /*maxImages*/10);
+        mImageReader4TakePicture.setOnImageAvailableListener(
                 new ImageReader.OnImageAvailableListener() {
                     @Override
                     public void onImageAvailable(ImageReader reader) {
@@ -283,15 +265,15 @@ public class MainFragment extends Fragment {
         texture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
 
         /* SurfaceTexture -> Surface */
-        Surface surface = new Surface(texture);
+        Surface surfaceFromTextureView = new Surface(texture);
 
         /* We set up a CaptureRequest.Builder with the output Surface. */
         try {
             mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-            mPreviewRequestBuilder.addTarget(surface);
+            mPreviewRequestBuilder.addTarget(surfaceFromTextureView);
 
             /* カメラプレビュー用 CameraCaptureSessionを開始 */
-            mCameraDevice.createCaptureSession(Arrays.asList(surface, mImageReader.getSurface()), mCaptureSessionStateCallback,null);
+            mCameraDevice.createCaptureSession(Arrays.asList(surfaceFromTextureView, mImageReader4TakePicture.getSurface()), mCaptureSessionStateCallback,null);
         }
         catch(CameraAccessException e) {
             /* 異常が発生したら、例外吐いて終了 */
@@ -379,6 +361,13 @@ public class MainFragment extends Fragment {
 
     /* CameraDevice.StateCallback::onOpened() -> createCameraPreviewSession() -> StateCallback::onConfigured() -> CaptureCallback::onCaptureProgressed() */
     /*                                                                                                            ↑ココ                                  */
+    private int mPrevState = STATE_PREVIEW;
+    private int mState = STATE_PREVIEW;
+    private static final int STATE_PREVIEW = 0;
+    private static final int STATE_WAITING_LOCK = 1;
+    private static final int STATE_WAITING_PRECAPTURE = 2;
+    private static final int STATE_WAITING_NON_PRECAPTURE = 3;
+    private static final int STATE_PICTURE_TAKEN = 4;
     private final CameraCaptureSession.CaptureCallback mCaptureCallback = new CameraCaptureSession.CaptureCallback() {
         @Override
         public void onCaptureProgressed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureResult partialResult) {
@@ -396,15 +385,24 @@ public class MainFragment extends Fragment {
                 case STATE_PREVIEW: /* 純粋プレビュー中 何もする必要なし */
                     break;
                 case STATE_WAITING_LOCK: {
+                    dbglogout(String.format("aaaaa 01 %d -> %d", mPrevState, mState));
                     Integer afState = result.get(CaptureResult.CONTROL_AF_STATE);
+                    /* オートフォーカス未設定なので即撮る */
                     if(afState == null) {
+                        mPrevState = mState;
+                        mState = STATE_PICTURE_TAKEN;
+                        dbglogout(String.format("set %d -> %d", mPrevState, mState));
                         captureStillPicture();
                     }
-                    else if (CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == afState || CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == afState) {
+                    /* オートフォーカスが正常に完了、もしくは、失敗で完了 */
+                    else if (afState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || afState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
                         /* CONTROL_AE_STATE can be null on some devices */
                         Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
+                        /* オートフォーカス完了時点で、AEもいい感じに完了してる、もしくは、null(一部のデバイスではnullになるらしい) */
                         if (aeState == null || aeState == CaptureResult.CONTROL_AE_STATE_CONVERGED) {
+                            mPrevState = mState;
                             mState = STATE_PICTURE_TAKEN;
+                            dbglogout(String.format("set %d -> %d", mPrevState, mState));
                             captureStillPicture();
                         }
                         else {
@@ -414,18 +412,24 @@ public class MainFragment extends Fragment {
                     break;
                 }
                 case STATE_WAITING_PRECAPTURE: {
+                    dbglogout(String.format("aaaaa 02 %d -> %d", mPrevState, mState));
                     /* CONTROL_AE_STATE can be null on some devices */
                     Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
                     if(aeState == null || aeState == CaptureResult.CONTROL_AE_STATE_PRECAPTURE || aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED) {
+                        mPrevState = mState;
                         mState = STATE_WAITING_NON_PRECAPTURE;
+                        dbglogout(String.format("set %d -> %d", mPrevState, mState));
                     }
                     break;
                 }
                 case STATE_WAITING_NON_PRECAPTURE: {
+                    dbglogout(String.format("aaaaa 03 %d -> %d", mPrevState, mState));
                     /* CONTROL_AE_STATE can be null on some devices */
                     Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
                     if(aeState == null || aeState != CaptureResult.CONTROL_AE_STATE_PRECAPTURE) {
+                        mPrevState = mState;
                         mState = STATE_PICTURE_TAKEN;
+                        dbglogout(String.format("set %d -> %d", mPrevState, mState));
                         captureStillPicture();
                     }
                     break;
@@ -434,38 +438,47 @@ public class MainFragment extends Fragment {
         }
     };
 
-    /*****************
-     * 撮像(シャッターON)
-     *****************/
+    /********************************************************************************************************************************************************************************************
+     * 撮像(シャッターON)シーケンス
+     *             takePicture()                    CaptureCallback::onCaptureProgressed()               CaptureCallback::onCaptureProgressed()       CaptureCallback::onCaptureProgressed()
+     *               -> lockFocus()                   -> runPrecaptureSequence()
+     * STATE_PREVIEW(0) --------> STATE_WAITING_LOCK(1) ------------------------> STATE_WAITING_PRECAPTURE(2) -----------> STATE_WAITING_NON_PRECAPTURE(3) --------------> STATE_PICTURE_TAKEN(4)
+     *              　　　　　　　　　AotoFocus開始              AF完了待ち             AE開始                       AE終了待ち　　　　　　　　　　　　　　　　　　　　　　AE終了待ち2       撮る
+     ********************************************************************************************************************************************************************************************/
     private void takePicture() {
-        dbglogout("takePicture s");
+        lockFocus();
+    }
+
+    private void lockFocus() {
         try {
             /* This is how to tell the camera to lock focus. */
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START);
             /* Tell #mCaptureCallback to wait for the lock. */
+            mPrevState = mState;
             mState = STATE_WAITING_LOCK;
-            dbglogout("takePicture capture(af-start) mCaptureCallback");
+            dbglogout(String.format("set %d -> %d", mPrevState, mState));
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         }
         catch (CameraAccessException e) {
             e.printStackTrace();
         }
-        dbglogout("takePicture e");
     }
 
     /**
+     * 静止画像キャプチャ前のプレCaptureシーケンスを実行
+     *　このメソッドは、lockFocus()によるCapture Callback応答を受け取ったときに、呼び出される必要がある。
      * Run the pre-capture sequence for capturing a still image.
      * This method should be called when we get a response in {@link #mCaptureCallback} from {lockFocus()}.
      */
-    //     * we get a response in {@link #mCaptureCallback} from {@link #lockFocus()}.
-
     private void runPrecaptureSequence() {
         dbglogout("s ");
         try{
             /* This is how to tell the camera to trigger. */
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER, CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
             /* Tell #mCaptureCallback to wait for the pre-capture sequence to be set. */
+            mPrevState = mState;
             mState = STATE_WAITING_PRECAPTURE;
+            dbglogout(String.format("set %d -> %d", mPrevState, mState));
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
         }
         catch (CameraAccessException e) {
@@ -475,19 +488,16 @@ public class MainFragment extends Fragment {
     }
 
     /**
+     * 静止画キャプチャ実行。
+     * このメソッドは、両方のlockFocus()による、Capture Callback応答を受け取ったときに、呼び出される必要がある。
      * Capture a still picture. This method should be called when we get a response in
      * {@link #mCaptureCallback} from both {lockFocus()}.
      */
     private void captureStillPicture() {
-        dbglogout("s ");
-        dbglogout("takePicture captureStillPicture(STATE_WAITING_LOCK) s");
         try{
-            final Activity activity = getActivity();
-            if(null == activity || null == mCameraDevice) return;
-
             /* This is the CaptureRequest.Builder that we use to take a picture. */
             final CaptureRequest.Builder captureBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-            captureBuilder.addTarget(mImageReader.getSurface());
+            captureBuilder.addTarget(mImageReader4TakePicture.getSurface());
 
             /* Use the same AE and AF modes as the preview. */
             captureBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
@@ -495,38 +505,31 @@ public class MainFragment extends Fragment {
                 captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
 
             /* Orientation これは設定せん。なんか動かんらしい。  */
-//            int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
+//            int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
 //            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, (ORIENTATIONS.get(rotation) + mSensorOrientation + 270) % 360);
-            CameraCaptureSession.CaptureCallback CaptureCallback = new CameraCaptureSession.CaptureCallback() {
+
+            CameraCaptureSession.CaptureCallback lCaptureCallback = new CameraCaptureSession.CaptureCallback() {
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
-                    dbglogout("s onCaptureCompleted(239)");
                     dbglogout("takePicture onCaptureCompleted() -> unlockFocus()");
                     unlockFocus();
-                    dbglogout("e onCaptureCompleted(243)");
                 }
             };
 
-            dbglogout("takePicture CaptureSession::stopRepeating()");
             mCaptureSession.stopRepeating();
-            dbglogout("takePicture CaptureSession::abortCaptures()");
             mCaptureSession.abortCaptures();
-            dbglogout("takePicture CaptureSession::capture(ImageSever, CaptureCallback)");
-            mCaptureSession.capture(captureBuilder.build(), CaptureCallback, null);
+            mCaptureSession.capture(captureBuilder.build(), lCaptureCallback, mBackgroundHandler);
         }
         catch (CameraAccessException e) {
             e.printStackTrace();
         }
-        dbglogout("e ");
-        dbglogout("takePicture captureStillPicture(STATE_WAITING_LOCK) e");
     }
 
     /**
-     * Unlock the focus. This method should be called when still image capture sequence is finished.
+     * Unlock the focus.
+     * This method should be called when still image capture sequence is finished.
      */
     private void unlockFocus() {
-        dbglogout("s ");
-        dbglogout("takePicture unlockFocus() s");
         try {
             /* Reset the auto-focus trigger */
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);
@@ -534,20 +537,20 @@ public class MainFragment extends Fragment {
                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback, mBackgroundHandler);
             /* After this, the camera will go back to the normal state of preview. */
-            dbglogout("takePicture status is set a STATE_PREVIEW.");
+            mPrevState = mState;
             mState = STATE_PREVIEW;
+            dbglogout(String.format("set %d -> %d", mPrevState, mState));
             mCaptureSession.setRepeatingRequest(mRequestforPreview, mCaptureCallback, mBackgroundHandler);
         }
         catch (CameraAccessException e) {
             e.printStackTrace();
         }
-        dbglogout("takePicture unlockFocus() e");
-        dbglogout("e ");
     }
 
-    /**********************************************************************
-     * Handler終了,TextureView終了シーケンス
-     **********************************************************************/
+    /*******************************
+     * Handler終了, カメラ終了シーケンス
+     * onPause() -> closeCamera()
+     *******************************/
     @Override
     public void onPause() {
         super.onPause();
@@ -579,9 +582,9 @@ public class MainFragment extends Fragment {
                 mCameraDevice.close();
                 mCameraDevice = null;
             }
-            if (null != mImageReader) {
-                mImageReader.close();
-                mImageReader = null;
+            if (null != mImageReader4TakePicture) {
+                mImageReader4TakePicture.close();
+                mImageReader4TakePicture = null;
             }
         }
         catch (InterruptedException e) {
@@ -590,18 +593,6 @@ public class MainFragment extends Fragment {
         finally {
             mCameraOpenCloseSemaphore.release();
         }
-    }
-
-    private void showToast(final String text) {
-        final Activity activity = getActivity();
-        if(activity == null)
-            return;
-        activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(activity, text, Toast.LENGTH_SHORT).show();
-            }
-        });
     }
 
     /**
